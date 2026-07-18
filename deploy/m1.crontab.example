@@ -1,0 +1,18 @@
+# nightcrew M1 감시견 crontab (§8) — 리포를 M1 ~/nightcrew에 클론해 사용
+# M1 시스템 TZ가 KST가 아니면 시각을 변환해 등록할 것.
+#
+# ⚠ macOS cron의 기본 PATH는 /usr/bin:/bin — Homebrew node가 잡히지 않아 감시견 전체가
+#   조용히 죽는다. 아래 PATH에 `which node`의 디렉터리가 포함되는지 반드시 확인할 것.
+PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+#
+# ⚠ deadman 알림이 폰에 오려면 M1 리포의 .env에 TELEGRAM_TOKEN/TELEGRAM_CHAT_ID가 있어야 한다.
+#   미설정이면 콘솔 폴백 = 로그 파일에만 남아 감시견이 무의미해진다.
+
+# ⚠ 로그 리다이렉트 대상 디렉터리가 없으면 cron이 명령 실행 전에 죽는다(리다이렉트가 먼저 열림)
+#   — mkdir를 앞에 붙여 첫 배포·재설치에서도 안전하게.
+
+# 백업 pull (07:30 KST)
+30 7 * * * mkdir -p "$HOME/nightcrew-backup" && bash "$HOME/nightcrew/watchdog/backup.sh" >> "$HOME/nightcrew-backup/backup.log" 2>&1
+
+# deadman (08:00 KST) — 오늘 원장에 heartbeat/run_* 부재 시 알림
+0 8 * * * mkdir -p "$HOME/nightcrew-backup" && node "$HOME/nightcrew/watchdog/deadman.mjs" >> "$HOME/nightcrew-backup/deadman.log" 2>&1

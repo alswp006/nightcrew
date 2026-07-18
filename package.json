@@ -1,0 +1,19 @@
+{
+  "name": "nightcrew",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "sentinel": "bash qa-sentinel/run.sh",
+    "scribe:daily": "node scribe/daily.mjs",
+    "scribe:commits": "node scribe/collect-commits.mjs",
+    "watchdog:deadman": "node watchdog/deadman.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.54.0"
+  }
+}

@@ -1,0 +1,9 @@
+.env*
+!.env.example
+node_modules/
+ledger/
+artifacts/
+store/
+journal/
+test-results/
+*.log

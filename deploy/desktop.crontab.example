@@ -1,0 +1,19 @@
+# nightcrew 데스크톱(WSL2) crontab — §5·§13-1
+#
+# ⚠ cron 기본 PATH에 node가 없을 수 있다(nvm 설치 등) — `which node`의 디렉터리를 포함시킬 것.
+PATH=/usr/local/bin:/usr/bin:/bin
+# 전제: 리포가 ~/nightcrew에 체크아웃되고 .env에 LEDGER_DIR 등이 설정됨 (Q4)
+# 시스템 TZ와 무관하게 코드가 KST로 날짜를 계산하지만, cron 시각 자체는 시스템 TZ를 따른다.
+# 시스템이 KST가 아니면 아래 시각을 변환해 등록할 것 (04:30 KST = 19:30 UTC 전날).
+
+# Sentinel 새벽 QA (04:30 KST)
+30 4 * * * bash "$HOME/nightcrew/qa-sentinel/run.sh" >> "$HOME/nightcrew/sentinel.log" 2>&1
+
+# Scribe 커밋 수집 (23:50 KST — 그날 커밋을 그날 원장에)
+50 23 * * * node "$HOME/nightcrew/scribe/collect-commits.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
+
+# Scribe 개발일지 + 아침 스탠드업 (07:00 KST — 07:30 M1 백업 전에 journal 생성)
+0 7 * * * node "$HOME/nightcrew/scribe/daily.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
+
+# artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 07:30 M1 백업이 별도 보존을 마친 뒤)
+0 9 * * * find "$HOME/nightcrew/artifacts" -mindepth 2 -maxdepth 2 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null

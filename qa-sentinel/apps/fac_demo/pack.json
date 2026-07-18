@@ -1,0 +1,9 @@
+{
+  "app_id": "fac_demo",
+  "name": "데모 (Q1 확정 전 임시 팩 — 실제 fac_* 앱 선정 시 교체)",
+  "base_url_env": "FAC_DEMO_BASE_URL",
+  "profile": "experimental",
+  "level": "smoke",
+  "created_by": "human",
+  "created_at": "2026-07-18"
+}
