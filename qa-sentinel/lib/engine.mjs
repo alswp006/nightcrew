@@ -16,6 +16,19 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 // globalTimeout을 프로세스 강제 종료보다 앞에 둔다.
 const PACK_TIMEOUT_MS = 10 * 60 * 1000;
 const PACK_GLOBAL_TIMEOUT_MS = PACK_TIMEOUT_MS - 30_000;
+// §5 파이프라인 진행-중 마커: Factory가 store/pipeline/{app_id}.json에 {startedAt}을 쓰고 끝나면 지운다.
+// 크래시로 남은 잔재가 팩을 영원히 막지 않게 TTL을 둔다.
+const PIPELINE_MARKER_TTL_MS = 2 * 60 * 60 * 1000;
+
+async function pipelineRunning(markersDir, appId, now) {
+  try {
+    const marker = JSON.parse(await readFile(path.join(markersDir, `${appId}.json`), 'utf8'));
+    const startedAt = new Date(marker.startedAt ?? 0).getTime();
+    return now.getTime() - startedAt < PIPELINE_MARKER_TTL_MS;
+  } catch {
+    return false;
+  }
+}
 
 function playwrightConfigSource({ testDir, reportPath, outputDir, baseUrl }) {
   return `export default {
@@ -161,13 +174,14 @@ export async function runSentinel({
   appsDir = path.join(REPO_ROOT, 'qa-sentinel', 'apps'),
   artifactsRoot = path.join(REPO_ROOT, 'artifacts'),
   ledgerDir = process.env.LEDGER_DIR,
+  markersDir = path.join(REPO_ROOT, 'store', 'pipeline'),
   env = process.env,
   now = new Date(),
   notifyImpl,
   log = console.log,
 } = {}) {
   const rawNotify = notifyImpl ?? ((text, opts) => sendNotify(text, { env, ...opts }));
-  const counters = { packsRun: 0, packsSkipped: 0, packParseFailures: 0, writeFailures: 0, notifyFailures: 0, claudeSkipped: 0 };
+  const counters = { packsRun: 0, packsSkipped: 0, pipelineSkipped: 0, packParseFailures: 0, writeFailures: 0, notifyFailures: 0, claudeSkipped: 0 };
   const date = todayKST(now);
 
   const notify = async (text, opts) => {
@@ -202,6 +216,13 @@ export async function runSentinel({
   const experimentalFails = [];
 
   for (const pack of packs) {
+    // §5: 해당 앱 파이프라인/힐이 진행 중이면 스킵+카운트 — 배포 중인 앱을 QA하지 않는다
+    if (await pipelineRunning(markersDir, pack.app_id, now)) {
+      counters.pipelineSkipped += 1; // R3
+      log(`[sentinel] skip ${pack.app_id}: 파이프라인 진행-중 마커`);
+      results.push({ app_id: pack.app_id, profile: pack.profile, status: 'skipped', skipped: true, reason: 'pipeline-running' });
+      continue;
+    }
     const baseUrl = env[pack.base_url_env];
     if (!baseUrl) {
       counters.packsSkipped += 1; // R3
@@ -332,13 +353,14 @@ export async function runSentinel({
     kind: 'note',
     title: 'sentinel run summary',
     detail:
-      `packs_run=${counters.packsRun} skipped=${counters.packsSkipped} ` +
+      `packs_run=${counters.packsRun} skipped=${counters.packsSkipped} pipeline_skipped=${counters.pipelineSkipped} ` +
       `parse_failures=${counters.packParseFailures} write_failures=${counters.writeFailures} ` +
       `notify_failures=${counters.notifyFailures} claude_skipped=${counters.claudeSkipped}`,
   });
 
   log(
     `[sentinel] done packs_run=${counters.packsRun} R3: skipped=${counters.packsSkipped} ` +
+      `pipeline_skipped=${counters.pipelineSkipped} ` +
       `pack_parse_failures=${counters.packParseFailures} write_failures=${counters.writeFailures} ` +
       `notify_failures=${counters.notifyFailures} claude_skipped=${counters.claudeSkipped}`
   );

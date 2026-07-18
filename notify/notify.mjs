@@ -72,5 +72,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const text = process.argv.slice(2).join(' ') || '(empty notify)';
   const r = await sendNotify(text);
   if (!r.ok) console.error(`[notify] send failed: ${r.reason}`);
-  process.exit(0); // 알림 실패가 본 작업을 중단시키면 안 된다
+  // 실패는 exit 1로 알린다 — 호출자가 실패를 카운트할 수 있게(R3). 발송 실패로 본 작업을
+  // 중단할지 여부는 호출자 몫이다(셸에서는 `|| true`로 무시 가능).
+  process.exit(r.ok ? 0 : 1);
 }

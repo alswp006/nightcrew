@@ -164,7 +164,7 @@ qa-sentinel/
 
 ## 5. Sentinel v2 (nightcrew 리포)
 
-- 엔진: Playwright. §3 규약. 스케줄: **04:30 KST** (야간배치 02:00 + quick 완료 후. 해당 앱 파이프라인이 아직 도는 중이면 그 팩은 스킵+카운트 — *진행-중 감지는 Factory 마커가 필요해 3주차 훅과 함께 구현. 1~2주차 엔진에는 미구현*).
+- 엔진: Playwright. §3 규약. 스케줄: **04:30 KST** (야간배치 02:00 + quick 완료 후. 해당 앱 파이프라인이 아직 도는 중이면 그 팩은 스킵+카운트). **진행-중 마커 계약(v2.1 확정):** Factory가 파이프라인/힐 시작 시 `~/nightcrew/store/pipeline/{app_id}.json`에 `{"startedAt": ISO}`를 쓰고 종료 시 삭제한다. 엔진은 마커가 2시간 이내 신선할 때만 스킵(크래시 잔재가 팩을 영원히 막지 않게).
 - 매 실행 종료 시 원장에 이벤트 1건 append: `run_pass`/`run_flaky`(재시도 후 성공)/`run_fail`. 실패면 `detail`에 error_signature(계약 C), `refs`에 대표 증거.
 - **profile별 동작(§11 매트릭스가 원본):** `protected` = 재시도 → claude -p 보고 → 알림(사진+보고서). `experimental` = claude -p 분석 생략, 원장에 `heal_request` 발행(refs 포함), 알림은 실험 앱 묶음 한 줄 요약(§10 배칭).
 - 매 새벽 실행 시작 시 `heartbeat` 이벤트 1건 append(감시견의 생존 신호).

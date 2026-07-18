@@ -11,6 +11,8 @@
     "sentinel": "bash qa-sentinel/run.sh",
     "scribe:daily": "node scribe/daily.mjs",
     "scribe:commits": "node scribe/collect-commits.mjs",
+    "scribe:career": "node scribe/career.mjs",
+    "scribe:diary": "node scribe/diary.mjs",
     "watchdog:deadman": "node watchdog/deadman.mjs"
   },
   "dependencies": {

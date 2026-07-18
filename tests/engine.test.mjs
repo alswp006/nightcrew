@@ -112,6 +112,43 @@ test('§11 protected: 즉시 사진 알림, 2연속 실패에만 claude 보고 �
   await access(path.join(artifactsRoot, 'prot_bad', todayKST(), 'claude-report.md'));
 });
 
+test('§5: 파이프라인 진행-중 마커가 있으면 그 팩은 스킵+카운트한다', { timeout: 60_000 }, async () => {
+  const { writeFile: wf } = await import('node:fs/promises');
+  const root = await setupRoot();
+  const appsDir = path.join(root, 'apps');
+  const markersDir = path.join(root, 'markers');
+  await writePack(appsDir, 'fac_busy', 'experimental', 'FAC_BUSY_BASE_URL', SMOKE_OK);
+  await mkdir(markersDir, { recursive: true });
+  await wf(path.join(markersDir, 'fac_busy.json'), JSON.stringify({ startedAt: new Date().toISOString() }));
+
+  const summary = await runSentinel({
+    appsDir,
+    artifactsRoot: path.join(root, 'artifacts'),
+    ledgerDir: path.join(root, 'ledger'),
+    markersDir,
+    env: { FAC_BUSY_BASE_URL: 'http://127.0.0.1:1' }, // URL이 있어도 마커가 우선
+    notifyImpl: async () => ({ ok: true }),
+  });
+  assert.equal(summary.counters.pipelineSkipped, 1);
+  assert.ok(!summary.order.includes('fac_busy'), '진행 중인 앱은 실행하지 않는다');
+
+  // 오래된(stale) 마커는 무시하고 정상 실행 경로를 탄다
+  await wf(
+    path.join(markersDir, 'fac_busy.json'),
+    JSON.stringify({ startedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString() })
+  );
+  const again = await runSentinel({
+    appsDir,
+    artifactsRoot: path.join(root, 'artifacts'),
+    ledgerDir: path.join(root, 'ledger'),
+    markersDir,
+    env: { FAC_BUSY_BASE_URL: 'http://127.0.0.1:1' },
+    notifyImpl: async () => ({ ok: true }),
+  });
+  assert.equal(again.counters.pipelineSkipped, 0, 'stale 마커는 파이프라인 크래시 잔재 — 스킵하지 않는다');
+  assert.ok(again.order.includes('fac_busy'));
+});
+
 test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { timeout: 300_000 }, async () => {
   const root = await setupRoot();
   const appsDir = path.join(root, 'apps');

@@ -140,6 +140,10 @@ nightcrew/                          # 데스크톱(WSL2)에서는 ~/nightcrew �
 | 5 | Telegram 실발송 (지금까지는 콘솔 폴백만 검증) | 1주차 D.5 | Q5 | 토큰 설정 후 notify CLI 1회 |
 | 6 | §5 "파이프라인 진행 중 팩 스킵" — Factory 마커 필요 | — | 3주차 이월 | §7 훅과 함께 구현 |
 | 7 | claude/ollama 요약 엔진 실호출 (템플릿 폴백은 검증됨) | 2주차 | — | 배포 후 scribe.log의 summary engine 라인 |
+| 8 | §13-3 순환 실검증: 야간배치 1회 → 팩 자동 설치 → 다음 새벽 Sentinel → 고의 결함 run_fail→heal→run_pass | 3주차 | Q6 | 데스크톱에서 실제 파이프라인 1회 (ai-factory NIGHTCREW_DISCOVERY.md §D) |
+| 9 | toss heal 후 재배포(ait deploy) 경로 — 코드는 있으나 실기기 미검증 | 3주차 | — | 고의 결함 순환 시 함께 확인 |
+| 10 | KAIROS 데몬 비상주 확인 — worker 상주 운용이면 이중 수리 경합(ai-factory DISCOVERY §C) | 3주차 | Q6 | `KAIROS_ENABLED` 미설정 확인 |
+| 11 | Sentinel-iOS 실기기 — 러너·판정은 스텁 테스트로 검증됨, Xcode 프로젝트 연결은 §9.3 설계 시 | 수시 | — | love_place Xcode scheme 확보 후 |
 
 미결정 질문 상태: Q1(첫 팩 앱) **답변됨(2026-07-18): 사용자 앱들은 웹뷰 기반 iOS — 개발이 더 진행된 뒤 URL이 생기면 지정하기로 유보. 그때까지 fac_demo 더미 유지, 실앱 등록 시 필요한 것 = ①배포 URL ②핵심 화면 1~2개 ③protected/experimental 분류. 웹뷰 앱은 iPhone 뷰포트 에뮬레이션 + 브리지 구간은 화면 도달 확인까지(§7.1 논리)** / Q2(love_place 웹 URL): 웹뷰 기반으로 확인 — URL은 추후 / Q3(힐 상한 M) 미답·비차단(기본 4) / Q4(체크아웃 경로) 미답 — `~/nightcrew` 가정으로 구현됨 / Q5~Q8 미답. Q9(문서 수정)는 구현 승인에 포함된 것으로 보고 v2.1로 반영 완료.
 

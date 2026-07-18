@@ -17,3 +17,12 @@ PATH=/usr/local/bin:/usr/bin:/bin
 
 # artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 07:30 M1 백업이 별도 보존을 마친 뒤)
 0 9 * * * find "$HOME/nightcrew/artifacts" -mindepth 2 -maxdepth 2 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
+
+# Scribe 경력 작가 (§6 Phase 2 — 주 1회 일요일 20:00, career/pending.md 확인 답장 처리 + 새 후보 알림)
+0 20 * * 0 node "$HOME/nightcrew/scribe/career.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
+
+# Scribe 세 줄 일기 (§6 Phase 3 — 23:40 KST. 로컬 Ollama 없으면 자동 대기하므로 등록해 둬도 무해)
+40 23 * * * node "$HOME/nightcrew/scribe/diary.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
+
+# Factory Self-heal 소비 (§7.3 — 매시 15분. ai-factory 리포 경로는 환경에 맞게 조정)
+15 * * * * cd "$HOME/Project/ai-factory/apps/orchestrator" && pnpm nightcrew:consume >> "$HOME/nightcrew/consume.log" 2>&1
