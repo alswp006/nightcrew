@@ -88,6 +88,52 @@ test('photoPath 파일이 없으면 텍스트만 발송하고 실패하지 않�
   assert.match(calls[0], /sendMessage/);
 });
 
+test('Slack 사진: SLACK_BOT_TOKEN+CHANNEL_ID가 있으면 files.uploadV2 3단계로 업로드한다', async () => {
+  const { mkdtemp, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const dir = await mkdtemp(path.join(tmpdir(), 'nc-slackphoto-'));
+  const photo = path.join(dir, 'shot.png');
+  await writeFile(photo, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+  const calls = [];
+  const fetchImpl = async (url, opts = {}) => {
+    calls.push({ url, opts });
+    if (url.includes('getUploadURLExternal')) {
+      return { ok: true, status: 200, json: async () => ({ ok: true, upload_url: 'https://files.slack.com/up/1', file_id: 'F1' }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  };
+  const r = await sendNotify('protected 실패', {
+    env: { SLACK_WEBHOOK_URL: 'https://hooks.slack.com/x', SLACK_BOT_TOKEN: 'xb', SLACK_CHANNEL_ID: 'C123' },
+    fetchImpl,
+    photoPath: photo,
+  });
+  assert.equal(r.ok, true);
+  assert.match(calls[0].url, /getUploadURLExternal/);
+  assert.equal(calls[1].url, 'https://files.slack.com/up/1');
+  assert.match(calls[2].url, /completeUploadExternal/);
+  const complete = JSON.parse(calls[2].opts.body);
+  assert.equal(complete.channel_id, 'C123');
+  assert.match(complete.initial_comment, /protected 실패/);
+  assert.ok(!calls.some((c) => c.url.includes('hooks.slack.com')), '업로드 성공 시 웹훅 중복 발송 없음');
+});
+
+test('Slack 사진: 봇 토큰이 없으면 웹훅 텍스트로 폴백하고 경로를 남긴다', async () => {
+  const calls = [];
+  const fetchImpl = async (url, opts) => {
+    calls.push({ url, body: opts.body });
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  };
+  const r = await sendNotify('x', {
+    env: { SLACK_WEBHOOK_URL: 'https://hooks.slack.com/x' },
+    fetchImpl,
+    photoPath: '/nonexistent/shot.png',
+  });
+  assert.equal(r.ok, true);
+  assert.match(calls[0].url, /hooks\.slack\.com/);
+});
+
 test('R3: 발송 실패해도 던지지 않고 ok:false를 반환한다', async () => {
   const fetchImpl = async () => {
     throw new Error('network down');

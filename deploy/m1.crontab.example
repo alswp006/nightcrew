@@ -5,7 +5,7 @@
 #   조용히 죽는다. 아래 PATH에 `which node`의 디렉터리가 포함되는지 반드시 확인할 것.
 PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 #
-# ⚠ deadman 알림이 폰에 오려면 M1 리포의 .env에 TELEGRAM_TOKEN/TELEGRAM_CHAT_ID가 있어야 한다.
+# ⚠ deadman 알림이 오려면 M1 리포의 .env에 SLACK_WEBHOOK_URL이 있어야 한다(v2.2 기본 채널).
 #   미설정이면 콘솔 폴백 = 로그 파일에만 남아 감시견이 무의미해진다.
 
 # ⚠ 로그 리다이렉트 대상 디렉터리가 없으면 cron이 명령 실행 전에 죽는다(리다이렉트가 먼저 열림)

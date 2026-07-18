@@ -26,3 +26,6 @@ PATH=/usr/local/bin:/usr/bin:/bin
 
 # Factory Self-heal 소비 (§7.3 — 매시 15분. ai-factory 리포 경로는 환경에 맞게 조정)
 15 * * * * cd "$HOME/Project/ai-factory/apps/orchestrator" && pnpm nightcrew:consume >> "$HOME/nightcrew/consume.log" 2>&1
+
+# Factory 야간배치 자체(scout 23:00 → nightly 00:00, v2.2)는 ai-factory/NIGHTLY_SETUP.md의
+# crontab을 따른다 — 여기 중복 등록하지 말 것.

@@ -1,4 +1,6 @@
-# 야간조(Night Crew) 통합 설계 v2.1 — 최종 구현판
+# 야간조(Night Crew) 통합 설계 v2.2 — 최종 구현판
+
+> **v2.2 (2026-07-18, 사용자 결정):** ① 야간배치를 02:00 → **00:00 KST**로 (scout는 23:00 — nightly보다 선행해야 함, ai-factory NIGHTLY_SETUP.md) ② 알림 기본 채널을 텔레그램 → **슬랙**으로 (§10·§14 — 사진은 SLACK_BOT_TOKEN 업로드, 텔레그램은 옵션으로 강등).
 
 > **v2.1 (2026-07-18):** DISCOVERY 검토에서 확정된 결함 7건 반영 — ① deadman 검사 대상을 어제→오늘(KST) 파일로 ② 감시견 백업에 artifacts 추가 ③ §7.2 설치 경로 이중 접두 오탈자 정정 ④ R3 다이제스트 참조 §8→§6 정정 ⑤ Self-heal 티켓 소스를 heal_request 단일 kind로 확정 ⑥ §0.1 표에 Watchdog 담당 추가 ⑦ mermaid 블로그 초안 제거. 상세 근거는 NIGHTCREW_DISCOVERY.md §B.
 
@@ -164,7 +166,7 @@ qa-sentinel/
 
 ## 5. Sentinel v2 (nightcrew 리포)
 
-- 엔진: Playwright. §3 규약. 스케줄: **04:30 KST** (야간배치 02:00 + quick 완료 후. 해당 앱 파이프라인이 아직 도는 중이면 그 팩은 스킵+카운트). **진행-중 마커 계약(v2.1 확정):** Factory가 파이프라인/힐 시작 시 `~/nightcrew/store/pipeline/{app_id}.json`에 `{"startedAt": ISO}`를 쓰고 종료 시 삭제한다. 엔진은 마커가 2시간 이내 신선할 때만 스킵(크래시 잔재가 팩을 영원히 막지 않게).
+- 엔진: Playwright. §3 규약. 스케줄: **04:30 KST** (야간배치 00:00 + quick 완료 후 — v2.2에서 배치가 당겨져 여유가 커졌다. 해당 앱 파이프라인이 아직 도는 중이면 그 팩은 스킵+카운트). **진행-중 마커 계약(v2.1 확정):** Factory가 파이프라인/힐 시작 시 `~/nightcrew/store/pipeline/{app_id}.json`에 `{"startedAt": ISO}`를 쓰고 종료 시 삭제한다. 엔진은 마커가 2시간 이내 신선할 때만 스킵(크래시 잔재가 팩을 영원히 막지 않게).
 - 매 실행 종료 시 원장에 이벤트 1건 append: `run_pass`/`run_flaky`(재시도 후 성공)/`run_fail`. 실패면 `detail`에 error_signature(계약 C), `refs`에 대표 증거.
 - **profile별 동작(§11 매트릭스가 원본):** `protected` = 재시도 → claude -p 보고 → 알림(사진+보고서). `experimental` = claude -p 분석 생략, 원장에 `heal_request` 발행(refs 포함), 알림은 실험 앱 묶음 한 줄 요약(§10 배칭).
 - 매 새벽 실행 시작 시 `heartbeat` 이벤트 1건 append(감시견의 생존 신호).
@@ -232,7 +234,7 @@ M1에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 
 ## 10. 계약 D — 알림(notify) 유틸 (신설)
 
-- nightcrew 공용 `notify` 유틸 하나: 채널은 env로 선택 — `TELEGRAM_TOKEN`+`TELEGRAM_CHAT_ID`(기본) 그리고/또는 `SLACK_WEBHOOK_URL`(옵션).
+- nightcrew 공용 `notify` 유틸 하나: 채널은 env로 선택 — `SLACK_WEBHOOK_URL`(**기본**, v2.2) 그리고/또는 `TELEGRAM_TOKEN`+`TELEGRAM_CHAT_ID`(옵션). §11의 사진 첨부는 Slack 웹훅으로 불가 — `SLACK_BOT_TOKEN`+`SLACK_CHANNEL_ID`(files.uploadV2)로 업로드하고, 미설정 시 경로 텍스트로 폴백.
 - 실패해도 본 작업은 계속(R3 카운트). 미설정 시 콘솔 출력으로 폴백.
 - **배칭**: experimental 실패는 건별 발송 금지 — 실행 종료 시 묶음 한 줄. protected 실패만 즉시 발송.
 - Factory의 기존 Slack Block Kit 보고는 그대로 둔다(이 계약은 nightcrew 컴포넌트용).
@@ -281,8 +283,9 @@ M1에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 | 값 | 어디 | 비고 |
 |---|---|---|
 | `LEDGER_DIR` | 데스크톱 전역 + nightcrew·factory `.env` | `~/nightcrew/ledger` |
-| `TELEGRAM_TOKEN` `TELEGRAM_CHAT_ID` | nightcrew `.env` | notify 기본 채널 |
-| `SLACK_WEBHOOK_URL` | (옵션) nightcrew `.env` | notify 보조 채널 |
+| `SLACK_WEBHOOK_URL` | nightcrew `.env` (데스크톱+M1) | notify 기본 채널 (v2.2) |
+| `SLACK_BOT_TOKEN` `SLACK_CHANNEL_ID` | (권장) nightcrew `.env` | protected 실패 사진 업로드 (files:write 스코프) |
+| `TELEGRAM_TOKEN` `TELEGRAM_CHAT_ID` | (옵션) nightcrew `.env` | notify 보조 채널 |
 | `REPOS` 화이트리스트 | nightcrew `.env` | 개인 리포만 |
 | `FAC_*_BASE_URL` | nightcrew `.env` | 팩 설치 시 Factory가 안내 출력 |
 | `OLLAMA_URL` | nightcrew `.env` | `http://localhost:11434` (데스크톱 로컬) |

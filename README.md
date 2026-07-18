@@ -74,7 +74,7 @@ WSL2 사전 조건: `/etc/wsl.conf`에 `[boot] systemd=true`(cron 가동), Windo
 ## M1(감시견) 배치 (§8)
 
 1. 리포를 M1 `~/nightcrew`에 클론, `npm install` (Playwright 불필요 — 감시견은 브라우저를 안 쓴다)
-2. `.env` 생성: **`TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` 필수** — 없으면 deadman 알림이 로그 파일에만 남아 감시견이 무의미하다. 호스트/경로가 기본값과 다르면 `NC_DESKTOP_*`도 설정(.env.example 참조)
+2. `.env` 생성: **`SLACK_WEBHOOK_URL` 필수**(기본 채널, v2.2) — 없으면 deadman 알림이 로그 파일에만 남아 감시견이 무의미하다. 호스트/경로가 기본값과 다르면 `NC_DESKTOP_*`도 설정(.env.example 참조)
 3. ssh 사전 검증 — cron 비대화형 환경 그대로 재현해 통과해야 한다(passphrase 없는 키 + tailnet):
    `env -i HOME="$HOME" PATH=/usr/bin:/bin ssh desktop true && echo OK`
    보안 권장: M1용 키는 데스크톱 `authorized_keys`에서 `command="rrsync -ro ~/nightcrew",restrict`로 읽기 전용 제한(§8 단방향 pull 강제)

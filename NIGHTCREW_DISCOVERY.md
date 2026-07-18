@@ -29,14 +29,14 @@
 
 ### B.2 구현 기본값으로 흡수 (아래 E절에 채택안 명기, 승인 한 번으로 함께 확정)
 
-- **KST 강제 메커니즘 부재** — 이 시스템의 활동 창(02:00~08:00 KST)은 전부 UTC 날짜 ≠ KST 날짜 구간. `toISOString()`류 UTC 날짜 하나만 끼어도 매일 밤 오파일 → E.3 참조.
+- **KST 강제 메커니즘 부재** — 이 시스템의 활동 창(00:00~08:00 KST, v2.2)은 전부 UTC 날짜 ≠ KST 날짜 구간. `toISOString()`류 UTC 날짜 하나만 끼어도 매일 밤 오파일 → E.3 참조.
 - **run_flaky 재시도 규약 미정** — E.4 참조.
 - **시크릿 스캔 패턴 미정의** — E.5 참조.
 - **refs·artifacts 기준 경로 암묵적**(~/nightcrew 가정) — E.6 + 질문 Q4 참조.
 
 ### B.3 환경 확인 필요 (구현 전 데스크톱에서 확인)
 
-- **WSL2 cron 상시 동작 전제 미명세** — systemd/cron 옵트인 여부, VM 유휴 종료 방지, 기존 02:00 야간배치의 구동 메커니즘 확인 → 질문 Q6.
+- **WSL2 cron 상시 동작 전제 미명세** — systemd/cron 옵트인 여부, VM 유휴 종료 방지, 기존 야간배치(v2.2부터 00:00)의 구동 메커니즘 확인 → 질문 Q6.
 - **M1→WSL2 ssh/rsync 수신 경로 미정의** — WSL2 기본 NAT에서는 외부 머신이 직접 접속 불가. tailnet `desktop` 노드가 Windows 호스트인지 WSL2 게스트인지에 따라 §8 rsync·§2.3 예외② 경로가 갈림 → 질문 Q7 (2주차 전 확정이면 충분).
 - **SCRIBE_SPEC.md 부재** — 2주차(Scribe Phase 1) 원본 명세. 1주차 비차단, 2주차 전 소재 확인 → 질문 Q8.
 
@@ -122,7 +122,7 @@ nightcrew/                          # 데스크톱(WSL2)에서는 ~/nightcrew �
 - **Q3 (§14 결정③)**: 전체 야간 힐 상한 M은 기본 4 유지? (3주차 값)
 - **Q4**: 데스크톱에서 이 리포의 체크아웃 경로는 `~/nightcrew`가 맞는가? (§7.2 설치 경로·§8 rsync 경로·refs 기준점과 정합해야 함)
 - **Q5**: `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` 발급값은? `SLACK_WEBHOOK_URL` 병행?
-- **Q6**: 데스크톱 04:30 실행 방식 — WSL2 내부 cron/systemd timer인가, Windows 작업 스케줄러인가? 기존 02:00 야간배치는 어느 메커니즘으로 도는가?
+- **Q6**: 데스크톱 04:30 실행 방식 — WSL2 내부 cron/systemd timer인가, Windows 작업 스케줄러인가? 기존 야간배치(v2.2부터 scout 23:00·nightly 00:00 — ai-factory NIGHTLY_SETUP.md crontab)는 어느 메커니즘으로 도는가?
 - **Q7 (2주차 전)**: tailnet의 `desktop` 노드는 Windows 호스트인가 WSL2 게스트인가? (M1 rsync·ssh append 경로 결정)
 - **Q8 (2주차 전)**: SCRIBE_SPEC.md의 소재는? (타 리포 존재? 미작성?)
 - **Q9**: B.1의 문서 수정 제안 7건을 NIGHTCREW_DESIGN.md에 반영해도 되는가?
