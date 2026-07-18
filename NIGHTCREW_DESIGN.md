@@ -1,4 +1,6 @@
-# 야간조(Night Crew) 통합 설계 v2.3 — 최종 구현판
+# 야간조(Night Crew) 통합 설계 v2.4 — 최종 구현판
+
+> **v2.4 (2026-07-19, 사용자 결정):** 맥 위성 폐지 — 맥을 남기는 유일한 이유였던 iOS QA(§9.3)는 **M1에서 온디맨드**로 돌린다(상시 서버 불필요). 위성(백업·deadman)은 **기기 무관** — rsync+node가 도는 상시 소형 기기(라즈베리파이·미니PC·VPS)면 된다. M4는 매각 예정, 대체 기기 도착 전까지 임시 위성.
 
 > **v2.3 (2026-07-19, 사용자 결정):** 위성과 휴대 작업기 역할 교체 — **위성(백업·deadman·iOS QA) = M4**(14인치, 집 상시 거치 서버), **휴대 작업기·세션로그 소스 = M1**(16인치). §1·§2.3·§6·§8·§13·§14와 배치 문서 갱신. *이하 v2.0~v2.2 서술에 남은 M1/M4는 당시 배정 기준이며 v2.3이 이긴다.*
 
@@ -24,7 +26,7 @@
 
 | 현재 리포 | 담당 컴포넌트 | 읽을 장 |
 |---|---|---|
-| **nightcrew** (신규) | 원장 유틸 + Sentinel 엔진/팩 + Scribe + notify + Watchdog 스크립트(M4에서 pull해 등록) | §2~§8, §10, §11 |
+| **nightcrew** (신규) | 원장 유틸 + Sentinel 엔진/팩 + Scribe + notify + Watchdog 스크립트(위성 기기에서 pull해 등록) | §2~§8, §10, §11 |
 | **AI Factory** | Factory 훅 (팩 산출·설치·Self-heal 소비·이벤트 미러) | §2, §3, §4, §7 |
 | love_place | **담당 없음** (읽기 전용 참고. 어떤 자동 수정도 금지) | — |
 | 그 외 | 담당 없음 | 멈추고 사람에게 확인 |
@@ -47,7 +49,7 @@ DISCOVERY 작성 후 반드시 멈춘다. 사람이 명시적으로 **"구현 �
 - **Sentinel** — 배포된 앱을 새벽에 실사용해보는 Playwright QA 봇. nightcrew 리포. 엔진 하나, 앱은 팩으로 여럿.
 - **Scribe(서기)** — 원장·커밋·일정·사진 메타를 읽어 개발일지·세 줄 일기·경력 원장을 쓰는 소비자. nightcrew 리포. (상세: SCRIBE_SPEC.md)
 - **Factory 훅** — 앱을 구울 때 QA 팩을 함께 산출하고, Sentinel 실패를 Self-heal 티켓으로 소비. ai-factory 리포.
-- **Watchdog(감시견)** — **M4 위성**(v2.3). 원장 백업 pull + deadman 알림 + (후속) iOS QA. 유일하게 딴 기계여야 의미 있는 일들.
+- **Watchdog(감시견)** — **위성, 기기 무관**(v2.4 — 현재 임시 M4, 매각 후 파이/VPS급으로 교체). 원장 백업 pull + deadman 알림. 유일하게 딴 기계여야 의미 있는 일들.
 
 ```mermaid
 flowchart LR
@@ -60,7 +62,7 @@ flowchart LR
     L --> M[Scribe]
     M --> J[일지·일기·경력]
   end
-  subgraph M4[M4 — 위성]
+  subgraph SAT[위성 — 기기 무관]
     W[Watchdog: 백업 pull + deadman]
   end
   L -.단방향 rsync.-> W
@@ -110,7 +112,7 @@ flowchart LR
 - 검증: 필수 필드(`ts/source/kind`) 확인, 이벤트 **≤8KB**, `detail`·`title`에 시크릿 패턴(토큰/키 정규식) 발견 시 **거부**.
 - `$LEDGER_DIR` 미설정 → 경고 1줄 + exit 0 (원칙 2). 쓰기 실패가 본 작업을 중단시키면 안 된다 — 자기 로그에 남기고 계속(단 R3: 실패 카운트).
 - 시크릿·토큰·개인정보를 `detail`에 넣지 않는다. 증거는 `refs` 경로로만.
-- **원격 머신에서 원장으로 push 금지.** 데스크톱에서 도는 프로세스만 직접 append. 예외 둘: ① M1 세션로그의 `store/inbox/` 파일 반입(파일 동기화이지 원장 append 아님) ② M4 iOS QA 결과의 ssh 경유 append 1회(반드시 ledger-append 유틸 경유).
+- **원격 머신에서 원장으로 push 금지.** 데스크톱에서 도는 프로세스만 직접 append. 예외 둘: ① M1 세션로그의 `store/inbox/` 파일 반입(파일 동기화이지 원장 append 아님) ② M1 iOS QA 결과의 ssh 경유 append 1회(반드시 ledger-append 유틸 경유 — v2.4: iOS QA 호스트는 M1).
 
 ### 2.4 읽기 규칙 + 소비자 커서
 - 읽기 전용. 파싱 실패 줄은 건너뛰고 **개수를 센다**(R3 — 다이제스트에 노출).
@@ -217,12 +219,12 @@ Miner의 통합 확장. 상세 명세는 **SCRIBE_SPEC.md**가 원본이고, 여
 
 ---
 
-## 8. Watchdog(감시견) — M4 위성 (신설 장, v2.3에서 M1→M4)
+## 8. Watchdog(감시견) — 위성 (v2.4: 기기 무관)
 
-M4에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
+위성 요건은 셋뿐이다: ① 데스크톱과 딴 기계 ② 07:30~08:00에 항상 깨어 있음 ③ rsync+node+tailscale. macOS 불필요 — 라즈베리파이·미니PC·VPS 전부 가능(VPS는 집 정전·회선 다운까지 잡는다). 위성에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 1. **백업**(07:30): `rsync -az desktop:~/nightcrew/ledger/ ~/nightcrew-backup/ledger/` + journal·artifacts 동일(§2.5의 "감시견 백업 별도 보존" 전제 충족). 단방향 pull. *단방향을 기술적으로 강제하려면 M1용 ssh 키를 데스크톱 authorized_keys에서 `command="rrsync -ro ~/nightcrew",restrict`로 제한할 것(예외 ②의 append용 키는 3주차에 별도 발급).*
 2. **deadman**(08:00): 백업된 **오늘(KST) 파일**에 기대 이벤트(`heartbeat` 또는 `run_*` ≥1)가 없으면 알림(§10). *(04:30 heartbeat는 KST 경계상 오늘 파일에 기록되므로 — 어제 파일 검사는 다운을 24시간 늦게 잡는다. 오늘 파일 검사는 heartbeat 부재와 07:30 rsync 실패(파일 자체 부재)를 모두 당일 08:00에 잡는다.)* 데스크톱이 통째로 죽은 밤을 잡는 유일한 장치 — 감시 대상과 딴 기계라서 의미 있음. 자기 자신의 마지막 성공 시각을 로컬 마커로 남겨, 감시견이 조용히 죽는 것도 다음 실행이 알아챈다.
-3. **iOS QA 트랙**(§9.3, 후속): love_place 배포 후 Xcode 시뮬레이터/실기기 Sentinel-iOS. 결과는 ssh 경유 ledger-append 1회(§2.3 예외 ②).
+3. ~~iOS QA 트랙~~ → v2.4에서 **M1 온디맨드**로 이동(§9.3). 위성은 백업·deadman만 남아 맥일 필요가 없어졌다.
 
 ---
 
@@ -230,7 +232,7 @@ M4에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 
 - **9.1** KFS 실험 배치: 이 문서 범위 밖. 원장 형식만 공유 가능.
 - **9.2** Scribe Phase 2(경력)·Phase 3(일기): §13 참조. Phase 3은 데스크톱 Ollama + Immich 준비 시.
-- **9.3** Sentinel-iOS(love_place): 웹 Playwright 스펙 부적용 — 배포 후 별도 설계. 이 문서에서는 자리만 예약.
+- **9.3** Sentinel-iOS(love_place): 웹 Playwright 스펙 부적용 — 배포 후 별도 설계. **실행 호스트 = M1**(v2.4 — 가끔 도는 작업이라 상시 서버 불필요, 재택/온디맨드 실행 후 §2.3 예외②로 적립). 이 문서에서는 자리만 예약.
 
 ---
 
@@ -272,8 +274,8 @@ M4에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 
 1. **1주차 — nightcrew 리포 부트스트랩.** 원장 유틸(ledger-append/read + 검증·flock·시크릿스캔) → notify 유틸 → Sentinel 엔진 + 첫 팩(fac_* 1개). *v2에서는 원장이 데스크톱 로컬이라 1주차에 바로 연결된다(순서 의존 제거).*
    완성 기준: `echo '{"ts":"...","source":"test","kind":"note","title":"hi"}' | node collectors/ledger-append.mjs` → 오늘 파일 1줄 / LEDGER_DIR 언셋 시 경고+exit 0 / Sentinel 수동 1회 → 원장 `run_*` 1건 + 시그니처 형식 확인 + artifacts 생성 / notify 미설정 시 콘솔 폴백.
-2. **2주차 — Scribe Phase 1 + Watchdog.** 커밋 수집기 + 개발일지 작가(요약: claude, 로컬 준비되면 ollama 전환) + M4 rsync/deadman cron.
-   완성 기준: `node scribe/daily.mjs` → `journal/오늘.md` 생성(R3 카운터 포함) / M4에서 rsync 성공 + 가짜 "빈 원장"으로 deadman 알림 발화 확인.
+2. **2주차 — Scribe Phase 1 + Watchdog.** 커밋 수집기 + 개발일지 작가(요약: claude, 로컬 준비되면 ollama 전환) + 위성 rsync/deadman cron.
+   완성 기준: `node scribe/daily.mjs` → `journal/오늘.md` 생성(R3 카운터 포함) / 위성에서 rsync 성공 + 가짜 "빈 원장"으로 deadman 알림 발화 확인.
 3. **3주차 — Factory 훅(§7).** 팩 산출 → 설치 → Self-heal 소비 → 이벤트 미러 순.
    완성 기준: 야간배치 1회에서 팩이 자동 설치되고, 다음 새벽 Sentinel이 그 앱을 돌고, 고의 결함 1개가 run_fail → heal_attempt → 다음 새벽 run_pass로 순환.
 4. **수시 — Scribe Phase 2(경력, 반나절)·Phase 3(일기, Ollama·Immich 준비 시)·Sentinel-iOS(§9.3).**
@@ -285,7 +287,7 @@ M4에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 | 값 | 어디 | 비고 |
 |---|---|---|
 | `LEDGER_DIR` | 데스크톱 전역 + nightcrew·factory `.env` | `~/nightcrew/ledger` |
-| `SLACK_WEBHOOK_URL` | nightcrew `.env` (데스크톱+M4) | notify 기본 채널 (v2.2) |
+| `SLACK_WEBHOOK_URL` | nightcrew `.env` (데스크톱+위성) | notify 기본 채널 (v2.2) |
 | `SLACK_BOT_TOKEN` `SLACK_CHANNEL_ID` | (권장) nightcrew `.env` | protected 실패 사진 업로드 (files:write 스코프) |
 | `TELEGRAM_TOKEN` `TELEGRAM_CHAT_ID` | (옵션) nightcrew `.env` | notify 보조 채널 |
 | `REPOS` 화이트리스트 | nightcrew `.env` | 개인 리포만 |
@@ -295,6 +297,6 @@ M4에 남는 일은 전부 "딴 기계여야만 의미 있는" 것들이다:
 | 집 WiFi SSID | M1 cron | 세션로그 동기화 게이트 |
 | `NC_CLAUDE_BIN` | (선택) nightcrew `.env` | cron PATH에 claude가 없을 때 절대경로 |
 | `NC_OLLAMA_MODEL` | (선택) nightcrew `.env` | 요약 모델, 기본 `llama3` |
-| `NC_DESKTOP_HOST` `NC_DESKTOP_NIGHTCREW` `NC_BACKUP_ROOT` `NC_BACKUP_LEDGER_DIR` | (선택) M4 `.env` | 감시견 경로, 기본 `desktop`/`nightcrew`/`~/nightcrew-backup`(+`/ledger`) |
+| `NC_DESKTOP_HOST` `NC_DESKTOP_NIGHTCREW` `NC_BACKUP_ROOT` `NC_BACKUP_LEDGER_DIR` | (선택) 위성 `.env` | 감시견 경로, 기본 `desktop`/`nightcrew`/`~/nightcrew-backup`(+`/ledger`) |
 
 **결정 대기(빈칸):** ① 첫 팩으로 쓸 fac_* 앱 선정(첫 야간배치 성공작) ② love_place 웹 URL 존재 여부(있으면 protected 웹 팩 추가 가능) ③ 전체 야간 힐 상한 M(기본 4).

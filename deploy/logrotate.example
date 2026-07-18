@@ -1,5 +1,5 @@
 # nightcrew 로그 회전 — /etc/logrotate.d/nightcrew 로 복사 (데스크톱 WSL2)
-# M4는 macOS라 logrotate가 없다 — 주기적으로 `tail -c 5M` 정리하거나 newsyslog 사용.
+# 위성이 macOS면 logrotate가 없다 — `tail -c 5M` 주기 정리나 newsyslog 사용(리눅스/VPS는 이 파일 그대로).
 /home/*/nightcrew/*.log {
     weekly
     rotate 8

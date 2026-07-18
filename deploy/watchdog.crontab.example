@@ -1,11 +1,11 @@
-# nightcrew M4 감시견 crontab (§8, v2.3: 위성 = M4) — 리포를 M4 ~/nightcrew에 클론해 사용
-# M4 시스템 TZ가 KST가 아니면 시각을 변환해 등록할 것.
+# nightcrew 감시견 위성 crontab (§8, v2.4: 기기 무관 — 맥/리눅스/VPS 공용)
+# 위성 시스템 TZ가 KST가 아니면 시각을 변환해 등록할 것 (VPS는 보통 UTC — 07:30 KST = 22:30 UTC 전날).
 #
-# ⚠ macOS cron의 기본 PATH는 /usr/bin:/bin — Homebrew node가 잡히지 않아 감시견 전체가
-#   조용히 죽는다. 아래 PATH에 `which node`의 디렉터리가 포함되는지 반드시 확인할 것.
+# ⚠ cron 기본 PATH에 node가 없으면 감시견 전체가 조용히 죽는다 — 아래 PATH에
+#   `which node`의 디렉터리가 포함되는지 반드시 확인할 것 (맥 Homebrew: /opt/homebrew/bin).
 PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 #
-# ⚠ deadman 알림이 오려면 M4 리포의 .env에 SLACK_WEBHOOK_URL이 있어야 한다(v2.2 기본 채널).
+# ⚠ deadman 알림이 오려면 위성 리포의 .env에 SLACK_WEBHOOK_URL이 있어야 한다(v2.2 기본 채널).
 #   미설정이면 콘솔 폴백 = 로그 파일에만 남아 감시견이 무의미해진다.
 
 # ⚠ 로그 리다이렉트 대상 디렉터리가 없으면 cron이 명령 실행 전에 죽는다(리다이렉트가 먼저 열림)

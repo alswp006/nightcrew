@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# §9.3 Sentinel-iOS 골격 — M4(v2.3 위성)에서 실행. love_place 배포 후 상세 설계 전까지의 최소 러너.
+# §9.3 Sentinel-iOS 골격 — M1에서 온디맨드 실행(v2.4 — 상시 서버 불필요). love_place 배포 후 상세 설계 전까지의 최소 러너.
 # ⚠ Xcode 프로젝트가 있어야 동작하며 이 골격은 실기기 검증 전이다 — 시나리오(테스트 플랜)는 §9.3 설계 시 확정.
 #
-# 필요 env (M4 .env):
+# 필요 env (M1 .env):
 #   NC_IOS_PROJECT  .xcodeproj 또는 .xcworkspace 경로
 #   NC_IOS_SCHEME   테스트 scheme
 #   NC_IOS_DEST     기본 'platform=iOS Simulator,name=iPhone 15'

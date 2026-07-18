@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# §8 감시견 백업 — M4(v2.3 위성)에서 07:30 단방향 pull (ledger + journal + artifacts).
-# 전제: M4→데스크톱 ssh 도달(tailnet, DISCOVERY Q7).
+# §8 감시견 백업 — 위성(기기 무관, v2.4)에서 07:30 단방향 pull (ledger + journal + artifacts).
+# 전제: 위성→데스크톱 ssh 도달(tailnet, DISCOVERY Q7).
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
