@@ -1,4 +1,4 @@
-// §8 v2.1 deadman — M1에서 08:00 실행. 백업된 "오늘(KST)" 원장에 heartbeat/run_*가 없으면 알림.
+// §8 deadman — M4(v2.3 위성)에서 08:00 실행. 백업된 "오늘(KST)" 원장에 heartbeat/run_*가 없으면 알림.
 // 오늘 파일 부재는 rsync 실패 또는 데스크톱 다운 — 두 경우 모두 당일 08:00에 잡힌다.
 // 자기 생존 마커: 감시견 자신이 오래 돌지 않았던 것도 다음 실행이 알아챈다.
 import path from 'node:path';
@@ -58,7 +58,7 @@ export async function runDeadman({
   const messages = [];
   if (!healthy) messages.push(`[Watchdog] deadman: ${reason}`);
   if (watchdogGapWarned) {
-    messages.push('[Watchdog] 감시견 자신이 26시간 넘게 돌지 않았다 — M1 cron/전원 확인 필요');
+    messages.push('[Watchdog] 감시견 자신이 26시간 넘게 돌지 않았다 — M4 cron/전원 확인 필요');
   }
   let notifyFailures = 0;
   for (const m of messages) {

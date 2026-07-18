@@ -12,10 +12,10 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # Scribe 커밋 수집 (23:50 KST — 그날 커밋을 그날 원장에)
 50 23 * * * node "$HOME/nightcrew/scribe/collect-commits.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
 
-# Scribe 개발일지 + 아침 스탠드업 (07:00 KST — 07:30 M1 백업 전에 journal 생성)
+# Scribe 개발일지 + 아침 스탠드업 (07:00 KST — 07:30 M4 백업 전에 journal 생성)
 0 7 * * * node "$HOME/nightcrew/scribe/daily.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
 
-# artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 07:30 M1 백업이 별도 보존을 마친 뒤)
+# artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 07:30 M4 백업이 별도 보존을 마친 뒤)
 0 9 * * * find "$HOME/nightcrew/artifacts" -mindepth 2 -maxdepth 2 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
 
 # Scribe 경력 작가 (§6 Phase 2 — 주 1회 일요일 20:00, career/pending.md 확인 답장 처리 + 새 후보 알림)

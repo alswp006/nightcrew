@@ -9,10 +9,10 @@
 boot/env.mjs              R1 env 부트 + R2 기동 배너
 collectors/ledger-append  계약 A 단일 관문 (검증·시크릿 스캔·동시 쓰기 안전)
 collectors/ledger-read    계약 A 읽기 + 소비자 커서 (§2.4 멱등 소비)
-notify/notify.mjs         계약 D (Telegram 기본, Slack 보조, 미설정 시 콘솔 폴백)
+notify/notify.mjs         계약 D (Slack 기본 — v2.2, Telegram 옵션, 미설정 시 콘솔 폴백)
 qa-sentinel/              Sentinel 엔진 + 앱 팩 (계약 B·C)
 scribe/                   커밋 수집기 + 개발일지 작가 + 아침 스탠드업 (§6)
-watchdog/                 M1 백업 pull + deadman (§8)
+watchdog/                 M4 백업 pull + deadman (§8)
 ```
 
 런타임 디렉터리(gitignore): `ledger/` `artifacts/` `store/` `journal/`
@@ -69,17 +69,17 @@ npm run scribe:daily     # 원장 → journal/오늘.md + 아침 스탠드업 1�
 ```
 
 WSL2 사전 조건: `/etc/wsl.conf`에 `[boot] systemd=true`(cron 가동), Windows 절전/재부팅 정책 확인 — NIGHTCREW_DISCOVERY.md Q6.
-보존 정책(§2.5): 원장 jsonl 무기한, `artifacts/`는 30일 후 삭제(crontab의 09:00 정리 job — M1 백업이 별도 보존).
+보존 정책(§2.5): 원장 jsonl 무기한, `artifacts/`는 30일 후 삭제(crontab의 09:00 정리 job — M4 백업이 별도 보존).
 
-## M1(감시견) 배치 (§8)
+## M4(감시견 서버) 배치 (§8 — v2.3: 위성 = M4, 휴대 작업기 = M1)
 
-1. 리포를 M1 `~/nightcrew`에 클론, `npm install` (Playwright 불필요 — 감시견은 브라우저를 안 쓴다)
+1. 리포를 M4 `~/nightcrew`에 클론, `npm install` (Playwright 불필요 — 감시견은 브라우저를 안 쓴다). 개발용 클론이 이미 `~/Project/night-crew`에 있으면 `ln -s ~/Project/night-crew ~/nightcrew`로 충분
 2. `.env` 생성: **`SLACK_WEBHOOK_URL` 필수**(기본 채널, v2.2) — 없으면 deadman 알림이 로그 파일에만 남아 감시견이 무의미하다. 호스트/경로가 기본값과 다르면 `NC_DESKTOP_*`도 설정(.env.example 참조)
 3. ssh 사전 검증 — cron 비대화형 환경 그대로 재현해 통과해야 한다(passphrase 없는 키 + tailnet):
    `env -i HOME="$HOME" PATH=/usr/bin:/bin ssh desktop true && echo OK`
-   보안 권장: M1용 키는 데스크톱 `authorized_keys`에서 `command="rrsync -ro ~/nightcrew",restrict`로 읽기 전용 제한(§8 단방향 pull 강제)
-4. macOS 절전 해제(잠자면 cron이 안 돈다): `sudo pmset -a sleep 0` 또는 07:20~08:10 예약 깨우기
-5. crontab 병합 등록: `(crontab -l 2>/dev/null; cat deploy/m1.crontab.example) | crontab -`
+   보안 권장: M4용 키는 데스크톱 `authorized_keys`에서 `command="rrsync -ro ~/nightcrew",restrict`로 읽기 전용 제한(§8 단방향 pull 강제)
+4. macOS 절전 해제(잠자면 cron이 안 돈다): `sudo pmset -a sleep 0`, 뚜껑 닫고 운용하면 `sudo pmset -a disablesleep 1`, 재부팅 대비 자동 로그인 켜기
+5. crontab 병합 등록: `(crontab -l 2>/dev/null; cat deploy/m4.crontab.example) | crontab -`
 6. 검증(§13-2): `bash watchdog/backup.sh` 수동 1회 → rsync 성공 확인 / `NC_BACKUP_LEDGER_DIR=/tmp/empty node watchdog/deadman.mjs` → 알림 발화 확인
 
 ## env (§14)

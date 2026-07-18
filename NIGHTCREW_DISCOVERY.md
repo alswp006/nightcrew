@@ -123,7 +123,7 @@ nightcrew/                          # 데스크톱(WSL2)에서는 ~/nightcrew �
 - **Q4**: 데스크톱에서 이 리포의 체크아웃 경로는 `~/nightcrew`가 맞는가? (§7.2 설치 경로·§8 rsync 경로·refs 기준점과 정합해야 함)
 - **Q5**: `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` 발급값은? `SLACK_WEBHOOK_URL` 병행?
 - **Q6**: 데스크톱 04:30 실행 방식 — WSL2 내부 cron/systemd timer인가, Windows 작업 스케줄러인가? 기존 야간배치(v2.2부터 scout 23:00·nightly 00:00 — ai-factory NIGHTLY_SETUP.md crontab)는 어느 메커니즘으로 도는가?
-- **Q7 (2주차 전)**: tailnet의 `desktop` 노드는 Windows 호스트인가 WSL2 게스트인가? (M1 rsync·ssh append 경로 결정)
+- **Q7 (2주차 전)**: tailnet의 `desktop` 노드는 Windows 호스트인가 WSL2 게스트인가? (M4 rsync·ssh append 경로 결정 — v2.3: 위성 = M4)
 - **Q8 (2주차 전)**: SCRIBE_SPEC.md의 소재는? (타 리포 존재? 미작성?)
 - **Q9**: B.1의 문서 수정 제안 7건을 NIGHTCREW_DESIGN.md에 반영해도 되는가?
 
@@ -135,8 +135,8 @@ nightcrew/                          # 데스크톱(WSL2)에서는 ~/nightcrew �
 |---|---|---|---|---|
 | 1 | 데스크톱 04:30 cron 등록 후 다음 날 heartbeat 자동 적재 | 1주차 D.9 | Q6 | 다음 날 아침 원장 grep heartbeat |
 | 2 | 실제 fac_* 앱 팩으로 Sentinel 1회 (지금은 fac_demo 더미) | 1주차 D.7~8 | **Q1** | 팩 교체 후 run.sh 수동 1회 |
-| 3 | M1→데스크톱 rsync 실제 성공 | 2주차 | Q7 | README M1 배치 절 3·6단계 |
-| 4 | M1 deadman cron 첫 자동 발화 (PATH·절전·mkdir 함정은 문서화됨) | 2주차 | Q7 | 다음 날 08:00 로그·알림 확인 |
+| 3 | M4→데스크톱 rsync 실제 성공 | 2주차 | Q7 | README M4 배치 절 3·6단계 |
+| 4 | M4 deadman cron 첫 자동 발화 (PATH·절전·mkdir 함정은 문서화됨) | 2주차 | Q7 | 다음 날 08:00 로그·알림 확인 |
 | 5 | Telegram 실발송 (지금까지는 콘솔 폴백만 검증) | 1주차 D.5 | Q5 | 토큰 설정 후 notify CLI 1회 |
 | 6 | §5 "파이프라인 진행 중 팩 스킵" — Factory 마커 필요 | — | 3주차 이월 | §7 훅과 함께 구현 |
 | 7 | claude/ollama 요약 엔진 실호출 (템플릿 폴백은 검증됨) | 2주차 | — | 배포 후 scribe.log의 summary engine 라인 |
