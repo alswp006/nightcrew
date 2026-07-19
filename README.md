@@ -71,7 +71,7 @@ npm run scribe:daily     # 원장 → journal/오늘.md + 아침 스탠드업 1�
 WSL2 사전 조건: `/etc/wsl.conf`에 `[boot] systemd=true`(cron 가동), Windows 절전/재부팅 정책 확인 — NIGHTCREW_DISCOVERY.md Q6.
 보존 정책(§2.5): 원장 jsonl 무기한, `artifacts/`는 30일 후 삭제(crontab의 09:00 정리 job — M4 백업이 별도 보존).
 
-## 감시견 위성 배치 (§8 — v2.4: 기기 무관. 현재 임시 M4, 매각 후 파이/VPS로 교체)
+## 감시견 위성 배치 (§8 — **v2.5: 잠정 부재.** 스탠드업 부재 = 이상 신호로 갈음, 맥미니 도입 시 아래 절차로 복구)
 
 1. 위성 기기의 `~/nightcrew`에 클론, `npm install` (Playwright 불필요 — rsync+node뿐이다. 리눅스/파이/VPS도 동일). 맥에 개발용 클론이 있으면 `ln -s ~/Project/night-crew ~/nightcrew`로 충분
 2. `.env` 생성: **`SLACK_WEBHOOK_URL` 필수**(기본 채널, v2.2) — 없으면 deadman 알림이 로그 파일에만 남아 감시견이 무의미하다. 호스트/경로가 기본값과 다르면 `NC_DESKTOP_*`도 설정(.env.example 참조)

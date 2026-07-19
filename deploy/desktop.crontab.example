@@ -15,7 +15,11 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # Scribe 개발일지 + 아침 스탠드업 (07:00 KST — 07:30 M4 백업 전에 journal 생성)
 0 7 * * * node "$HOME/nightcrew/scribe/daily.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
 
-# artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 07:30 M4 백업이 별도 보존을 마친 뒤)
+# 오프머신 백업 대체(v2.5 위성 부재 모드): 원장·일지·경력을 클라우드 동기화 폴더로 미러 (07:20 KST)
+# 경로는 환경에 맞게 — 예: Windows 구글드라이브 폴더가 /mnt/c/Users/<유저>/G드라이브/nightcrew-backup
+#20 7 * * * rsync -a "$HOME/nightcrew/ledger/" "$HOME/nightcrew/journal/" "$HOME/nightcrew/career/" /mnt/c/Users/<유저>/GoogleDrive/nightcrew-backup/ 2>/dev/null
+
+# artifacts 30일 보존 정리 (§2.5 — 09:00 KST, 클라우드 미러가 별도 보존을 마친 뒤)
 0 9 * * * find "$HOME/nightcrew/artifacts" -mindepth 2 -maxdepth 2 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
 
 # Scribe 경력 작가 (§6 Phase 2 — 주 1회 일요일 20:00, career/pending.md 확인 답장 처리 + 새 후보 알림)
