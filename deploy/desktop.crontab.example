@@ -12,6 +12,9 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # Scribe 커밋 수집 (23:50 KST — 그날 커밋을 그날 원장에)
 50 23 * * * node "$HOME/nightcrew/scribe/collect-commits.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
 
+# Scribe 세션 로그 수집 (23:45 KST — 커밋 수집 직전. SESSION_CWDS 비면 자동 무동작)
+45 23 * * * node "$HOME/nightcrew/scribe/collect-sessions.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
+
 # Scribe 개발일지 + 아침 스탠드업 (07:00 KST — 07:30 M4 백업 전에 journal 생성)
 0 7 * * * node "$HOME/nightcrew/scribe/daily.mjs" >> "$HOME/nightcrew/scribe.log" 2>&1
 

@@ -58,8 +58,18 @@ FAC_DEMO_BASE_URL=http://127.0.0.1:4173 bash qa-sentinel/run.sh
 
 ```bash
 npm run scribe:commits   # REPOS 화이트리스트의 커밋 → commit_digest 적립 (cron 23:50)
+npm run scribe:sessions  # SESSION_CWDS 화이트리스트의 Claude Code 세션 → session_digest 적립 (cron 23:45)
 npm run scribe:daily     # 원장 → journal/오늘.md + 아침 스탠드업 1줄 (cron 07:00)
 ```
+
+세션 수집기는 `~/.claude/projects/**/*.jsonl`(Claude Code 전사)을 읽는다. **기본은 메타데이터만** —
+언제·어느 프로젝트·몇 턴·무슨 도구를 몇 번 썼는지이고 대화 내용은 0바이트다. 전사는 이미 디스크에
+있으니 원장에 사본을 또 두지 않는다(원장은 백업으로 나가고 작가 3인이 읽는다). 일기에 쓸 소재가
+필요하면 `SESSIONS_DETAIL=topics`로 **첫 프롬프트 한 줄만** 연다(시크릿 마스킹 + 160자 절단).
+전사 전체를 담는 모드는 없다.
+
+세션 파일은 재개로 며칠씩 이어지므로 커서는 **소비한 줄 수**를 들고 새로 늘어난 줄만 요약한다 —
+파일 하나가 다이제스트 여럿을 낳는다. `SESSION_CWDS`가 비어 있으면 아무것도 수집하지 않는다.
 
 ## 데스크톱(WSL2) 배치
 
