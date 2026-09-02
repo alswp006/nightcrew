@@ -191,3 +191,63 @@ test('R3 카운터를 note로 남긴다 — 다이제스트가 읽는 유일한 
   assert.match(note.detail, /digests=1/);
   assert.match(note.detail, /parse_errors=0/);
 });
+
+test('첫 실행 백필 상한: 처음 보는 오래된 세션은 내용을 안 읽고 커서만 끝에 놓는다', async () => {
+  const cwd = '/home/user/proj';
+  const { root, dir } = await makeProjects({
+    old1: [userLine(cwd, '작년 일'), assistantLine(cwd, ['Bash'])],
+    fresh: [userLine(cwd, '오늘 일'), assistantLine(cwd, ['Edit'])],
+  });
+  const { utimes } = await import('node:fs/promises');
+  const longAgo = new Date(Date.now() - 90 * 86400000);
+  await utimes(path.join(dir, 'old1.jsonl'), longAgo, longAgo);
+
+  const ledgerDir = await tmp();
+  const storeDir = await tmp();
+  const c = await collectSessions({ projectsDir: root, allowCwds: [cwd], ledgerDir, storeDir, log: () => {} });
+
+  assert.equal(c.filesBackfillSkipped, 1);
+  assert.equal(c.digestsWritten, 1, '오래된 세션까지 적립됐다 — 켜는 날 원장이 과거로 뒤덮인다');
+  const dg = (await evs(ledgerDir)).filter((e) => e.kind === 'session_digest');
+  assert.equal(dg.length, 1);
+  assert.ok(!JSON.stringify(dg).includes('작년'), '백필 제외 세션의 내용이 샜다');
+
+  const cursor = JSON.parse(await readFile(path.join(storeDir, 'session-cursor.json'), 'utf8'));
+  assert.ok(cursor.old1.lines > 0, '커서를 끝에 안 놓으면 다음 실행이 또 훑는다');
+});
+
+test('백필 제외된 세션도 이후 새 활동은 적립한다 — 영구 제외가 아니다', async () => {
+  const cwd = '/home/user/proj';
+  const { root, dir } = await makeProjects({ old1: [userLine(cwd, '작년 일'), assistantLine(cwd, ['Bash'])] });
+  const { utimes } = await import('node:fs/promises');
+  const longAgo = new Date(Date.now() - 90 * 86400000);
+  await utimes(path.join(dir, 'old1.jsonl'), longAgo, longAgo);
+
+  const ledgerDir = await tmp();
+  const storeDir = await tmp();
+  const opts = { projectsDir: root, allowCwds: [cwd], ledgerDir, storeDir, log: () => {} };
+  assert.equal((await collectSessions(opts)).digestsWritten, 0);
+
+  // 그 세션을 오늘 다시 열었다
+  await appendFile(path.join(dir, 'old1.jsonl'),
+    JSON.stringify(userLine(cwd, '오늘 재개')) + '\n' + JSON.stringify(assistantLine(cwd, ['Write'])) + '\n', 'utf8');
+
+  assert.equal((await collectSessions(opts)).digestsWritten, 1);
+  const dg = (await evs(ledgerDir)).filter((e) => e.kind === 'session_digest');
+  assert.match(dg[0].detail, /tools=1 \(Write×1\)/, '재개분이 아니라 전체를 셌다');
+});
+
+test('SESSIONS_BACKFILL_DAYS=0이면 전체 백필(의도적 탈출구)', async () => {
+  const cwd = '/home/user/proj';
+  const { root, dir } = await makeProjects({ old1: [userLine(cwd, 'x'), assistantLine(cwd, ['Bash'])] });
+  const { utimes } = await import('node:fs/promises');
+  const longAgo = new Date(Date.now() - 90 * 86400000);
+  await utimes(path.join(dir, 'old1.jsonl'), longAgo, longAgo);
+
+  const c = await collectSessions({
+    projectsDir: root, allowCwds: [cwd], backfillDays: 0,
+    ledgerDir: await tmp(), storeDir: await tmp(), log: () => {},
+  });
+  assert.equal(c.digestsWritten, 1);
+  assert.equal(c.filesBackfillSkipped, 0);
+});

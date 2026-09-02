@@ -29,6 +29,11 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const DETAIL_LIMIT = 600;      // 이벤트 8KB 상한(§2.2)에 한참 못 미치게 — 원장은 요약이지 사본이 아니다
 const TOPIC_LIMIT = 160;       // topics 모드에서 싣는 첫 프롬프트 길이
 const TOOL_TOP_N = 8;
+// 첫 실행 백필 상한(일). collect-commits의 FIRST_RUN_LIMIT=20과 같은 자리 —
+// 없으면 켜는 날 과거 전 세션이 **오늘 원장에** 쏟아지고(모든 이벤트의 ts가 now다)
+// 그날 개발일지가 몇 달치 요약으로 뒤덮인다. 처음 보는 세션이 이보다 오래됐으면
+// 내용은 안 읽고 커서만 끝에 놓는다. 0이면 상한 없음(의도적 전체 백필).
+const BACKFILL_DAYS = 14;
 
 /** 사람이 친 턴인가 — tool_result는 user 타입으로 오지만 사람의 발화가 아니다(실측 2,212/2,321). */
 export function isHumanTurn(entry) {
@@ -66,6 +71,14 @@ function fmtDuration(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return '0m';
   const m = Math.round(ms / 60000);
   return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m` : `${m}m`;
+}
+
+/** 줄 수만 센다(JSON 파싱 없음) — 백필 제외 세션의 커서를 끝에 놓기 위한 최소 비용 통과. */
+async function countLines(file) {
+  const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
+  let n = 0;
+  try { for await (const _line of rl) n += 1; } finally { rl.close(); }
+  return n;
 }
 
 /**
@@ -116,12 +129,14 @@ export async function collectSessions({
   projectsDir = process.env.CLAUDE_PROJECTS_DIR || path.join(homedir(), '.claude', 'projects'),
   allowCwds = [],
   detail = process.env.SESSIONS_DETAIL === 'topics' ? 'topics' : 'meta',
+  backfillDays = Number(process.env.SESSIONS_BACKFILL_DAYS ?? BACKFILL_DAYS),
+  now = Date.now(),
   ledgerDir = process.env.LEDGER_DIR,
   storeDir = path.join(REPO_ROOT, 'store', 'scribe'),
   log = console.log,
 } = {}) {
   const counters = {
-    filesSeen: 0, filesSkippedCwd: 0, filesUnchanged: 0, digestsWritten: 0,
+    filesSeen: 0, filesSkippedCwd: 0, filesUnchanged: 0, filesBackfillSkipped: 0, digestsWritten: 0,
     parseErrors: 0, writeFailures: 0, rejectedDigests: 0, ledgerSkipped: 0, scanFailures: 0,
   };
   await mkdir(storeDir, { recursive: true });
@@ -150,10 +165,25 @@ export async function collectSessions({
       counters.filesSeen += 1;
 
       // 커서보다 파일이 안 컸으면 훑지도 않는다 — 매일 도는 cron이 수십 MB를 재파싱하지 않게.
+      const firstSight = cursor[sessionId] === undefined;
       const prev = cursor[sessionId] ?? { lines: 0, size: 0 };
-      let size = 0;
-      try { size = (await stat(file)).size; } catch { counters.scanFailures += 1; continue; }
+      let st;
+      try { st = await stat(file); } catch { counters.scanFailures += 1; continue; }
+      const size = st.size;
       if (size === prev.size && prev.lines > 0) { counters.filesUnchanged += 1; continue; }
+
+      // 처음 보는데 이미 오래된 세션 — 내용은 안 읽고 커서만 끝에 놓는다(백필 폭주 차단).
+      // 판정은 mtime이다: 파일 안 타임스탬프를 보려면 어차피 전체를 훑어야 해서 비용이 목적과 어긋난다.
+      // (clone·rsync로 mtime이 리셋된 기계라면 SESSIONS_BACKFILL_DAYS=0으로 전체 백필을 택하라.)
+      if (firstSight && backfillDays > 0 && now - st.mtimeMs > backfillDays * 86_400_000) {
+        counters.filesBackfillSkipped += 1;
+        try {
+          cursor[sessionId] = { lines: await countLines(file), size };
+        } catch {
+          counters.scanFailures += 1;
+        }
+        continue;
+      }
 
       let scan;
       try {
@@ -236,7 +266,8 @@ export async function collectSessions({
       title: 'session collector summary',
       detail:
         `detail=${detail} files=${counters.filesSeen} unchanged=${counters.filesUnchanged} ` +
-        `skipped_cwd=${counters.filesSkippedCwd} digests=${counters.digestsWritten} ` +
+        `skipped_cwd=${counters.filesSkippedCwd} backfill_skipped=${counters.filesBackfillSkipped} ` +
+        `digests=${counters.digestsWritten} ` +
         `parse_errors=${counters.parseErrors} scan_failures=${counters.scanFailures} ` +
         `write_failures=${counters.writeFailures} rejected=${counters.rejectedDigests} ledger_skipped=${counters.ledgerSkipped}`,
     },
@@ -254,7 +285,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const c = await collectSessions({ allowCwds });
   console.log(
     `[sessions] done files=${c.filesSeen} digests=${c.digestsWritten} R3: unchanged=${c.filesUnchanged} ` +
-      `skipped_cwd=${c.filesSkippedCwd} parse_errors=${c.parseErrors} scan_failures=${c.scanFailures} ` +
+      `skipped_cwd=${c.filesSkippedCwd} backfill_skipped=${c.filesBackfillSkipped} ` +
+      `parse_errors=${c.parseErrors} scan_failures=${c.scanFailures} ` +
       `write_failures=${c.writeFailures} rejected=${c.rejectedDigests} ledger_skipped=${c.ledgerSkipped}`
   );
   process.exit(0);
