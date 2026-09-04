@@ -64,7 +64,10 @@ async function setupRoot() {
   return root;
 }
 
-test('§11 protected: 즉시 사진 알림, 2연속 실패에만 claude 보고 첨부', { timeout: 300_000 }, async () => {
+// 서버 정리는 t.after로 — 단언이 실패하면 close()에 도달하지 못해 열린 핸들이 남고 `node --test`가
+// 영원히 안 끝난다(실측 2026-09-02: 브라우저 미설치로 실패한 스위트가 6분 넘게 매달렸다).
+// 계기가 실패를 '멈춤'으로 바꾸면 사람은 원인 대신 타임아웃만 본다.
+test('§11 protected: 즉시 사진 알림, 2연속 실패에만 claude 보고 첨부', { timeout: 300_000 }, async (t) => {
   const { appendEvent } = await import('../collectors/ledger-append.mjs');
   const { chmod } = await import('node:fs/promises');
   const root = await setupRoot();
@@ -72,6 +75,7 @@ test('§11 protected: 즉시 사진 알림, 2연속 실패에만 claude 보고 �
   const artifactsRoot = path.join(root, 'artifacts');
   const ledgerDir = path.join(root, 'ledger');
   const badServer = await serve(BAD_HTML);
+  t.after(() => badServer.close());
   const badUrl = `http://127.0.0.1:${badServer.address().port}`;
   await writePack(appsDir, 'prot_bad', 'protected', 'PROT_BAD_BASE_URL', SMOKE_RESULT);
 
@@ -105,7 +109,6 @@ test('§11 protected: 즉시 사진 알림, 2연속 실패에만 claude 보고 �
   // 2회차: 직전 run_fail 존재 → 2연속 — 사진 캡션 + claude 보고는 별도 메시지(캡션 1000자 잘림 방지)
   notifications.length = 0;
   await runSentinel(opts);
-  badServer.close();
   assert.equal(notifications.length, 2, '사진 알림 1건 + claude 보고 1건');
   assert.ok(notifications[0].opts?.photoPath?.endsWith('.png'));
   assert.ok(notifications[1].text.includes('가설: 스텁 보고'), '2연속 실패에는 claude 보고가 별도 발송');
@@ -149,7 +152,7 @@ test('§5: 파이프라인 진행-중 마커가 있으면 그 팩은 스킵+카�
   assert.ok(again.order.includes('fac_busy'));
 });
 
-test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { timeout: 300_000 }, async () => {
+test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { timeout: 300_000 }, async (t) => {
   const root = await setupRoot();
   const appsDir = path.join(root, 'apps');
   const artifactsRoot = path.join(root, 'artifacts');
@@ -169,6 +172,7 @@ test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { ti
     });
     s.listen(0, '127.0.0.1', () => resolve(s));
   });
+  t.after(() => flakyServer.close());
   await writePack(appsDir, 'fac_flaky', 'experimental', 'FAC_FLAKY_BASE_URL', SMOKE_RESULT);
   await mkdir(path.join(appsDir, 'broken'), { recursive: true });
   await writeFile(path.join(appsDir, 'broken', 'pack.json'), '{invalid json');
@@ -180,7 +184,6 @@ test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { ti
     env: { FAC_FLAKY_BASE_URL: `http://127.0.0.1:${flakyServer.address().port}` },
     notifyImpl: async () => ({ ok: true }),
   });
-  flakyServer.close();
 
   assert.equal(summary.counters.packParseFailures, 1, '파손 pack.json은 카운트 (R3)');
   const byApp = Object.fromEntries(summary.packs.map((p) => [p.app_id, p]));
@@ -193,7 +196,7 @@ test('run_flaky 판정 + pack.json 파손 카운트 + R3 요약 이벤트', { ti
   assert.match(note.event.detail, /parse_failures=1/);
 });
 
-test('Sentinel 엔진 통합: 계약 A·B·C·D + §11 매트릭스', { timeout: 300_000 }, async () => {
+test('Sentinel 엔진 통합: 계약 A·B·C·D + §11 매트릭스', { timeout: 300_000 }, async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'nc-sentinel-'));
   // 임시 팩의 spec이 @playwright/test를 해석할 수 있도록 리포 node_modules를 연결
   await symlink(new URL('../node_modules', import.meta.url).pathname, path.join(root, 'node_modules'));
@@ -203,6 +206,7 @@ test('Sentinel 엔진 통합: 계약 A·B·C·D + §11 매트릭스', { timeout:
 
   const goodServer = await serve(GOOD_HTML);
   const badServer = await serve(BAD_HTML);
+  t.after(() => { goodServer.close(); badServer.close(); });
   const goodUrl = `http://127.0.0.1:${goodServer.address().port}`;
   const badUrl = `http://127.0.0.1:${badServer.address().port}`;
 
@@ -229,9 +233,6 @@ test('Sentinel 엔진 통합: 계약 A·B·C·D + §11 매트릭스', { timeout:
       return { ok: true };
     },
   });
-
-  goodServer.close();
-  badServer.close();
 
   // §3.3: pack.json 있는 폴더만, protected 먼저
   assert.equal(summary.order[0], 'prot_demo', 'protected 팩이 먼저 실행돼야 한다');

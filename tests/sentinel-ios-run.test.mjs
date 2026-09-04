@@ -27,6 +27,8 @@ function runScript(stubDir, extraEnv = {}) {
       {
         env: {
           ...process.env,
+          // 계기 격리 — 자식이 운영자 .env를 읽지 않게(2026-09-04)
+          NC_ENV_FILE: `${tmpdir()}/nightcrew-tests-no-env-file`,
           PATH: `${stubDir}:${process.env.PATH}`,
           NC_IOS_PROJECT: '/tmp/demo.xcodeproj',
           NC_IOS_SCHEME: 'Demo',

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, appendFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { collectSessions, isHumanTurn, topicOf, cwdAllowed } from '../scribe/collect-sessions.mjs';
+import { collectSessions, isHumanTurn, topicOf, cwdAllowed, isSubagentEntrypoint } from '../scribe/collect-sessions.mjs';
 import { readEvents } from '../collectors/ledger-read.mjs';
 
 async function tmp() {
@@ -250,4 +250,76 @@ test('SESSIONS_BACKFILL_DAYS=0이면 전체 백필(의도적 탈출구)', async 
   });
   assert.equal(c.digestsWritten, 1);
   assert.equal(c.filesBackfillSkipped, 0);
+});
+
+// ── 서브에이전트 전사 제외(2026-09-02 실측: 첫 수집 21건 중 19건이 워크플로 서브에이전트였다) ──
+
+const agentLine = (cwd, text, ts = T, entrypoint = 'sdk-cli') => ({
+  type: 'user', cwd, gitBranch: 'main', version: '2.1.0', timestamp: ts, entrypoint,
+  message: { content: text },
+});
+const humanLine = (cwd, text, ts = T) => ({ ...agentLine(cwd, text, ts, 'cli') });
+
+test('isSubagentEntrypoint: sdk 계열만 서브에이전트 — 모르는 값은 사람 쪽으로 남긴다', () => {
+  assert.equal(isSubagentEntrypoint('sdk-cli'), true);
+  assert.equal(isSubagentEntrypoint('SDK-TS'), true);
+  assert.equal(isSubagentEntrypoint('cli'), false);
+  assert.equal(isSubagentEntrypoint('vscode'), false);
+  assert.equal(isSubagentEntrypoint(''), false);
+  assert.equal(isSubagentEntrypoint(undefined), false);
+});
+
+test('서브에이전트 전사는 적립하지 않고 커서만 전진한다 — 일지가 가짜 세션으로 덮이지 않게', async () => {
+  const cwd = '/home/user/proj';
+  const { root } = await makeProjects({
+    sub: [agentLine(cwd, '서브에이전트 과업'), assistantLine(cwd, ['Bash', 'StructuredOutput'])],
+    human: [humanLine(cwd, '사람이 시킨 일'), assistantLine(cwd, ['Edit'])],
+  });
+  const ledgerDir = await tmp();
+  const storeDir = await tmp();
+
+  const c = await collectSessions({ projectsDir: root, allowCwds: [cwd], ledgerDir, storeDir, log: () => {} });
+  assert.equal(c.digestsWritten, 1);
+  assert.equal(c.filesSkippedAgent, 1);
+
+  const dg = (await evs(ledgerDir)).filter((e) => e.kind === 'session_digest');
+  assert.equal(dg.length, 1);
+  assert.ok(!JSON.stringify(dg).includes('StructuredOutput'), '서브에이전트 도구 사용이 샜다');
+
+  const cursor = JSON.parse(await readFile(path.join(storeDir, 'session-cursor.json'), 'utf8'));
+  assert.ok(cursor.sub.lines > 0, '커서가 전진하지 않아 다음 실행이 또 훑는다');
+  assert.equal(cursor.sub.entrypoint, 'sdk-cli', '판정 근거를 커서에 남겨야 델타만 읽는 실행에서도 같은 판정이 나온다');
+});
+
+test('델타에 entrypoint가 없어도 커서에 적어 둔 값으로 계속 제외한다', async () => {
+  const cwd = '/home/user/proj';
+  const { root, dir } = await makeProjects({ sub: [agentLine(cwd, '1차'), assistantLine(cwd, ['Bash'])] });
+  const ledgerDir = await tmp();
+  const storeDir = await tmp();
+  const opts = { projectsDir: root, allowCwds: [cwd], ledgerDir, storeDir, log: () => {} };
+
+  assert.equal((await collectSessions(opts)).filesSkippedAgent, 1);
+
+  // 재개분에는 entrypoint가 실린 사람 턴이 없다(도구 결과·assistant만)
+  await appendFile(path.join(dir, 'sub.jsonl'),
+    JSON.stringify(assistantLine(cwd, ['Edit', 'Edit'])) + '\n' + JSON.stringify(toolResultLine(cwd)) + '\n', 'utf8');
+
+  const again = await collectSessions(opts);
+  assert.equal(again.digestsWritten, 0, '커서의 entrypoint를 안 보면 재개분이 사람 세션으로 새어 들어간다');
+  assert.equal(again.filesSkippedAgent, 1);
+});
+
+test('소요 시간은 벽시계 스팬이 아니라 붙어 있던 시간이다 — 재개 세션이 175h로 찍히던 것', async () => {
+  const cwd = '/home/user/proj';
+  const t0 = '2026-09-02T10:00:00.000Z';
+  const t1 = '2026-09-02T10:10:00.000Z';
+  const t2 = '2026-09-05T10:00:00.000Z';   // 사흘 뒤 재개 — 그 사이는 일한 시간이 아니다
+  const { root } = await makeProjects({
+    s1: [humanLine(cwd, '작업', t0), assistantLine(cwd, ['Bash'], t1), assistantLine(cwd, ['Edit'], t2)],
+  });
+  const ledgerDir = await tmp();
+
+  await collectSessions({ projectsDir: root, allowCwds: [cwd], ledgerDir, storeDir: await tmp(), log: () => {} });
+  const dg = (await evs(ledgerDir)).filter((e) => e.kind === 'session_digest');
+  assert.match(dg[0].detail, /dur=10m/, `벽시계 스팬이 실렸다: ${dg[0].detail}`);
 });

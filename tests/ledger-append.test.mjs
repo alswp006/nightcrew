@@ -23,8 +23,14 @@ async function tmp() {
   return mkdtemp(path.join(tmpdir(), 'nc-ledger-'));
 }
 
+// 계기 격리: 자식 프로세스는 boot/env.mjs가 리포 루트 `.env`를 읽는다 — 운영자가 설정을 채우는
+// 순간(LEDGER_DIR·SLACK_WEBHOOK_URL) '미설정' 테스트가 빨개지고, 알림 CLI 테스트는 **실제 Slack으로
+// 발송**한다(실측 2026-09-04: .env를 만들자마자 스위트 1건이 상수로 빨개졌다). 존재하지 않는 파일을
+// NC_ENV_FILE로 가리켜 자식이 아무 .env도 안 읽게 한다.
+const NO_ENV_FILE = path.join(tmpdir(), 'nightcrew-tests-no-env-file');
+
 function cliEnv(ledgerDir) {
-  const env = { ...process.env };
+  const env = { ...process.env, NC_ENV_FILE: NO_ENV_FILE };
   delete env.LEDGER_DIR;
   if (ledgerDir) env.LEDGER_DIR = ledgerDir;
   return env;

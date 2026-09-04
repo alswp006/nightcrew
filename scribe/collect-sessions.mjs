@@ -35,6 +35,17 @@ const TOOL_TOP_N = 8;
 // 내용은 안 읽고 커서만 끝에 놓는다. 0이면 상한 없음(의도적 전체 백필).
 const BACKFILL_DAYS = 14;
 
+// 워크플로·Task 서브에이전트도 자기 전사를 ~/.claude/projects/에 남긴다 — 파일 모양이 사람 세션과
+// 같아서 그대로 세면 일지가 "2턴·3분·StructuredOutput 1회"짜리 가짜 세션으로 덮인다(실측 2026-09-02:
+// 첫 수집 21건 중 19건). 구별 필드는 `entrypoint`다 — 사람이 연 세션은 `cli`(또는 IDE 계열),
+// 서브에이전트는 `sdk-cli`. SDK 계열 접두만 제외하고 모르는 값은 남긴다(조용한 손실 금지).
+const SUBAGENT_ENTRYPOINT_RE = /^sdk/i;
+
+/** 이 세션이 사람이 연 것이 아니라 SDK(서브에이전트)가 연 것인가. 모르면 false — 남기는 쪽. */
+export function isSubagentEntrypoint(entrypoint) {
+  return typeof entrypoint === 'string' && SUBAGENT_ENTRYPOINT_RE.test(entrypoint.trim());
+}
+
 /** 사람이 친 턴인가 — tool_result는 user 타입으로 오지만 사람의 발화가 아니다(실측 2,212/2,321). */
 export function isHumanTurn(entry) {
   if (entry?.type !== 'user' || entry?.isSidechain) return false;
@@ -73,6 +84,11 @@ function fmtDuration(ms) {
   return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 }
 
+// 세션 파일은 재개로 며칠에 걸쳐 이어진다 — 첫 줄과 마지막 줄의 차이는 "일한 시간"이 아니라
+// 달력 간격이다(실측: 한 세션이 175h32m으로 찍혔다). 30분 넘게 벌어진 구간은 자리를 비운
+// 것으로 보고 빼서 **실제로 붙어 있던 시간**만 더한다. 일지가 읽는 숫자는 이쪽이다.
+const IDLE_GAP_MS = 30 * 60 * 1000;
+
 /** 줄 수만 센다(JSON 파싱 없음) — 백필 제외 세션의 커서를 끝에 놓기 위한 최소 비용 통과. */
 async function countLines(file) {
   const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
@@ -89,8 +105,9 @@ async function scanDelta(file, fromLine) {
   const agg = {
     lines: 0, humanTurns: 0, assistantTurns: 0, sidechain: 0, parseErrors: 0,
     tools: new Map(), cwd: '', branch: '', version: '', entrypoint: '',
-    firstTs: '', lastTs: '', topic: '',
+    firstTs: '', lastTs: '', topic: '', activeMs: 0,
   };
+  let prevMs = 0;
   const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
   let idx = 0;
   try {
@@ -105,7 +122,15 @@ async function scanDelta(file, fromLine) {
       if (o.gitBranch) agg.branch = o.gitBranch;
       if (o.version) agg.version = o.version;
       if (o.entrypoint) agg.entrypoint = o.entrypoint;
-      if (o.timestamp) { agg.firstTs ||= o.timestamp; agg.lastTs = o.timestamp; }
+      if (o.timestamp) {
+        agg.firstTs ||= o.timestamp;
+        agg.lastTs = o.timestamp;
+        const ms = Date.parse(o.timestamp);
+        if (Number.isFinite(ms)) {
+          if (prevMs && ms > prevMs && ms - prevMs <= IDLE_GAP_MS) agg.activeMs += ms - prevMs;
+          prevMs = ms;
+        }
+      }
       if (o.isSidechain) agg.sidechain += 1;
       if (o.type === 'assistant') agg.assistantTurns += 1;
       if (isHumanTurn(o)) {
@@ -136,8 +161,8 @@ export async function collectSessions({
   log = console.log,
 } = {}) {
   const counters = {
-    filesSeen: 0, filesSkippedCwd: 0, filesUnchanged: 0, filesBackfillSkipped: 0, digestsWritten: 0,
-    parseErrors: 0, writeFailures: 0, rejectedDigests: 0, ledgerSkipped: 0, scanFailures: 0,
+    filesSeen: 0, filesSkippedCwd: 0, filesSkippedAgent: 0, filesUnchanged: 0, filesBackfillSkipped: 0,
+    digestsWritten: 0, parseErrors: 0, writeFailures: 0, rejectedDigests: 0, ledgerSkipped: 0, scanFailures: 0,
   };
   await mkdir(storeDir, { recursive: true });
   const cursorFile = path.join(storeDir, 'session-cursor.json');
@@ -196,16 +221,27 @@ export async function collectSessions({
       const { agg, totalLines } = scan;
       counters.parseErrors += agg.parseErrors;
 
-      if (agg.lines === 0) { counters.filesUnchanged += 1; cursor[sessionId] = { lines: totalLines, size }; continue; }
+      // entrypoint는 사람 턴 줄에만 실린다 — 델타에 없으면 이 세션을 처음 봤을 때 커서에 적어 둔
+      // 값을 쓴다(재개분만 읽는 실행에서 판정이 흔들리지 않게).
+      const entrypoint = agg.entrypoint || prev.entrypoint || '';
+      const mark = { lines: totalLines, size, ...(entrypoint ? { entrypoint } : {}) };
+
+      if (agg.lines === 0) { counters.filesUnchanged += 1; cursor[sessionId] = mark; continue; }
+      if (isSubagentEntrypoint(entrypoint)) {
+        // 서브에이전트 전사 — 사람의 작업이 아니다. 커서만 전진(다음 실행이 또 훑지 않게).
+        counters.filesSkippedAgent += 1;
+        cursor[sessionId] = mark;
+        continue;
+      }
       if (!cwdAllowed(agg.cwd, allowCwds)) {
         counters.filesSkippedCwd += 1;
         // 화이트리스트 밖은 **커서만 전진**시킨다 — 내용은 한 글자도 안 남기고, 다음 실행이 또 훑지 않게.
-        cursor[sessionId] = { lines: totalLines, size };
+        cursor[sessionId] = mark;
         continue;
       }
       // 사람 턴이 0인 델타(도구 결과만 늘어난 꼬리)는 적립하지 않는다 — 일지에 쓸 게 없다.
       if (agg.humanTurns === 0 && agg.assistantTurns === 0) {
-        cursor[sessionId] = { lines: totalLines, size };
+        cursor[sessionId] = mark;
         continue;
       }
 
@@ -213,7 +249,8 @@ export async function collectSessions({
       const tools = [...agg.tools.entries()].sort((a, b) => b[1] - a[1]);
       const toolStr = tools.slice(0, TOOL_TOP_N).map(([n, c]) => `${n}×${c}`).join(' ');
       const toolTotal = tools.reduce((s, [, c]) => s + c, 0);
-      const durMs = agg.firstTs && agg.lastTs ? Date.parse(agg.lastTs) - Date.parse(agg.firstTs) : 0;
+      // 벽시계 스팬이 아니라 **붙어 있던 시간**이다(30분 넘는 공백 제외 — 재개 세션이 175h로 찍히던 것).
+      const durMs = agg.activeMs;
 
       const parts = [
         `cwd=${agg.cwd}`,
@@ -243,13 +280,13 @@ export async function collectSessions({
       }
       if (r.ok) {
         counters.digestsWritten += 1;
-        cursor[sessionId] = { lines: totalLines, size };
+        cursor[sessionId] = mark;
       } else if (r.skipped) {
         counters.ledgerSkipped += 1; // R3 — LEDGER_DIR 미설정. 커서 유보: 원장이 생기면 재수집
       } else {
         counters.writeFailures += 1; // R3
         log(`[sessions] ledger write failed (${sessionId}): ${r.reason}`);
-        if (r.rejected) cursor[sessionId] = { lines: totalLines, size }; // 마스킹 후에도 거부면 전진
+        if (r.rejected) cursor[sessionId] = mark; // 마스킹 후에도 거부면 전진
       }
     }
   }
@@ -266,7 +303,8 @@ export async function collectSessions({
       title: 'session collector summary',
       detail:
         `detail=${detail} files=${counters.filesSeen} unchanged=${counters.filesUnchanged} ` +
-        `skipped_cwd=${counters.filesSkippedCwd} backfill_skipped=${counters.filesBackfillSkipped} ` +
+        `skipped_cwd=${counters.filesSkippedCwd} skipped_agent=${counters.filesSkippedAgent} ` +
+        `backfill_skipped=${counters.filesBackfillSkipped} ` +
         `digests=${counters.digestsWritten} ` +
         `parse_errors=${counters.parseErrors} scan_failures=${counters.scanFailures} ` +
         `write_failures=${counters.writeFailures} rejected=${counters.rejectedDigests} ledger_skipped=${counters.ledgerSkipped}`,
@@ -285,7 +323,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const c = await collectSessions({ allowCwds });
   console.log(
     `[sessions] done files=${c.filesSeen} digests=${c.digestsWritten} R3: unchanged=${c.filesUnchanged} ` +
-      `skipped_cwd=${c.filesSkippedCwd} backfill_skipped=${c.filesBackfillSkipped} ` +
+      `skipped_cwd=${c.filesSkippedCwd} skipped_agent=${c.filesSkippedAgent} backfill_skipped=${c.filesBackfillSkipped} ` +
       `parse_errors=${c.parseErrors} scan_failures=${c.scanFailures} ` +
       `write_failures=${c.writeFailures} rejected=${c.rejectedDigests} ledger_skipped=${c.ledgerSkipped}`
   );
